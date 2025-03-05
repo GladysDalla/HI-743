@@ -1,0 +1,394 @@
+---
+title: "Linear Regression in R"
+author: "Gladys Dalla"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+# install.packages("ISLR2")
+library(ISLR2)
+```
+
+## Boston Dataset Analysis
+
+### Objective
+
+The objective of this analysis is to predict median housing values (`medv`) in Boston suburbs using:
+
+1.  A simple linear regression model with one predictor: percentage of lower status population (`lstat`)
+
+2.  A multiple regression model with two predictors: `lstat` and proportion of owner-occupied units built prior to 1940 (`age`)
+
+This analysis will help us understand how socioeconomic factors and housing age relate to housing prices in the Boston area.
+
+### Data Loading
+
+The Boston Housing dataset contains information about housing values in 506 suburbs of Boston, along with 13 variables that describe different characteristics of these suburbs. Here's a summary of what you've shared:
+
+The dataset has:
+
+-   506 observations (rows)
+
+-   13 variables (columns)
+
+-   No missing values
+
+The variables include:
+
+-   `crim`: Per capita crime rate by town
+
+-   `zn`: Proportion of residential land zoned for lots over 25,000 sq.ft
+
+-   `indus`: Proportion of non-retail business acres per town
+
+-   `chas`: Charles River dummy variable (1 if tract bounds river; 0 otherwise)
+
+-   `nox`: Nitrogen oxides concentration (parts per 10 million)
+
+-   `rm`: Average number of rooms per dwelling
+
+-   `age`: Proportion of owner-occupied units built prior to 1940
+
+-   `dis`: Weighted mean of distances to five Boston employment centers
+
+-   `rad`: Index of accessibility to radial highways
+
+-   `tax`: Full-value property-tax rate per \$10,000
+
+-   `ptratio`: Pupil-teacher ratio by town
+
+-   `lstat`: Lower status of the population (percent)
+
+-   `medv`: Median value of owner-occupied homes in \$1000s
+
+```{r load.data}
+data(Boston)
+glimpse(Boston)
+
+```
+
+```{r}
+summary(Boston)
+```
+
+```{r missing values}
+
+missing_values = Boston %>%
+  summarise(across(everything(), ~ sum(is.na(.))))
+print(missing_values)
+```
+
+## Train-Test Split
+
+Train-test splitting is a crucial technique for validating our regression models. When we split our Boston Housing dataset into training and testing sets (typically 70-80% for training, 20-30% for testing), we gain several important benefits for our analysis. First, this approach prevents overfitting by evaluating our model on unseen data, ensuring it generalizes beyond the specific patterns in our training data. The test set provides an honest assessment, giving us an unbiased estimate of how our model will perform on new, unseen Boston housing data. This enables objective model comparison between our simple regression and our multiple regression using the same test data.
+
+```{r}
+set.seed(123) # for reproducibility
+Boston_split = Boston %>%
+  mutate(id = row_number()) %>%
+  sample_frac(0.75)
+
+Boston = Boston %>% mutate(id = row_number())
+
+train_data = Boston_split
+test_data = anti_join(Boston, Boston_split, by ="id") #Remaining 25%
+```
+
+### Exploratory Data Analysis
+
+In our exploratory data analysis of the Boston Housing dataset, we created two fundamental visualizations to understand the data distribution and relationships.
+
+The histogram for median home values (medv) used a binwidth of 2 and was colored in steelblue with white borders for clarity. This visualization revealed the distribution pattern of housing prices across Boston suburbs. The histogram showed that most homes were concentrated in the middle price ranges, but with some notable right-skewness, indicating fewer high-priced outlier neighborhoods. This distribution insight was crucial for understanding our target variable and helped us assess whether transformations might be needed to address non-normality in our regression modeling.
+
+```{r histogram for medv}
+ggplot(Boston, aes(x = medv)) +
+  geom_histogram(fill = "steelblue", binwidth = 2, color="white") +
+  labs(title = "Distribution of Median Home Values",
+       x = "Median Value($1000s)",
+       y = "Count") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Our scatterplot of lower status population percentage (lstat) versus median home values (medv) displayed individual data points in blue with slight transparency (alpha = 0.6) to better visualize point density. This plot revealed a strong negative relationship between these variables - as the percentage of lower status population increases, median home values tend to decrease. Importantly, the scatterplot showed that this relationship is not perfectly linear but appears to have a curved pattern. This visualizations helps us understand the relationship of our target variable with our primary predictor. It provides visual evidence that guided our subsequent modeling decisions.
+
+```{r LSTAT vs MEDV Scatterplot}
+ggplot(Boston, aes(x=lstat,y=medv)) +
+  geom_point(alpha = 0.6 , color = "blue") +
+  labs(title = "Scatterplot: LSAT vs MEDV",
+       x = "% Lower Status Population",
+       y = "Median Home Values ($1000)") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### Model Implementation & Explanation
+
+For our analysis of the Boston Housing dataset, we implemented linear regression models, both simple and multiple variants. These models are used to predict median home values (medv) based on neighborhood characteristics.
+
+### Perform Simple Linear Regession
+
+The primary models include a simple linear regression using only lower status population percentage (lstat) as a predictor.
+
+Linear regression is particularly well-suited for this dataset because there are clear linear relationship between the predictor (lower status population percentage (lstat)) and the target variable, as revealed in our exploratory scatterplots.
+
+```{r linear regression}
+lm.fit = lm(medv ~ lstat, data = train_data)
+summary(lm.fit)
+```
+
+### Apply Model to Test Data
+
+When applying our linear regression model to the test data, we calculated both the training MSE and test MSE to evaluate its performance.
+
+The results from applying our linear regression model to both training and test data reveal that our Training MSE is 37.39 and our Test MSE is 41.86. These values represent the average squared error of our predictions in units of \$1000s squared.
+
+The Training MSE of 37.39 indicates that, on average, our model's predictions on the training data are off by approximately \$6,115 (√37.39 × \$1000). This gives us a baseline for how well our model fits the data it was built upon.
+
+More importantly, the Test MSE of 41.86 shows that when applied to new, unseen data, our model's predictions deviate from actual housing values by about \$6,471 (√41.86 × \$1000) on average. This represents the true predictive accuracy we can expect when the model encounters new Boston housing data.
+
+The difference between training and test MSE (41.86 - 37.39 = 4.47) is relatively small, suggesting that our model isn't severely overfitting the training data. This is a positive sign that indicates our model generalizes reasonably well to new data points.
+
+However, the fact that the Test MSE is higher than the Training MSE is expected and normal. It confirms the fundamental principle that predictions are typically less accurate on unseen data than on the data used to build the model.
+
+```{r apply model to test_data}
+train_mse = mean((train_data$medv - predict(lm.fit, train_data))^2)
+test_mse = mean((test_data$medv - predict(lm.fit, test_data))^2)
+  
+print(paste("Training MSE:", round(train_mse,2)))
+print(paste("Test MSE: ", round(test_mse,2)))
+```
+
+### Perform Multiple Linear Regression on Training Data
+
+In our analysis, we extended our modeling approach by implementing a multiple linear regression that incorporates both lower status population percentage (lstat) and housing age (age) as predictors of median home values (medv). This allows us to examine how housing age contributes to price prediction beyond the socioeconomic factor.
+
+```{r}
+lm.multiple.fit = lm(medv ~ lstat + age , data = train_data)
+summary(lm.multiple.fit)
+```
+
+### Apply the Model to Test Data
+
+```{r}
+train_mse = mean((train_data$medv - predict(lm.multiple.fit, train_data))^2)
+test_mse = mean((test_data$medv - predict(lm.multiple.fit, test_data))^2)
+  
+print(paste("Training MSE:", round(train_mse,2)))
+print(paste("Test MSE: ", round(test_mse,2)))
+
+```
+
+### Multiple Linear Regression Results & Interpretation
+
+The coefficient for lstat is -1.04394, which means that for each one percentage point increase in lower status population, the median home value decreases by approximately \$1,044, holding housing age constant. This strong negative relationship is highly statistically significant (p \< 2e-16), confirming that socioeconomic factors strongly influence housing prices.
+
+Interestingly, the coefficient for age is positive (0.03625), indicating that each additional percentage point of pre-1940 housing is associated with a slight increase of about \$36 in median home value when controlling for socioeconomic status. This positive relationship is statistically significant (p = 0.00867), though the effect size is much smaller than that of lstat. This contradicts what might be expected - older housing stock typically correlates with lower values - suggesting that in Boston, older homes may have historical value or be located in desirable established neighborhoods when socioeconomic factors are controlled for.
+
+The model explains approximately 57% of the variance in housing prices (R-squared = 0.5692), which represents substantial explanatory power. The F-statistic is highly significant (p \< 2.2e-16), confirming that our model as a whole provides meaningful predictions.
+
+Looking at performance metrics, the Training MSE decreased slightly from 37.39 in our simple model to 36.72 in this multiple regression model. Similarly, the Test MSE improved from 41.86 to 41.49. This modest improvement (about 0.9% reduction in test error) suggests that while age does add some predictive power, its contribution is relatively small compared to the socioeconomic factor measured by lstat.
+
+Overall, while adding the age variable does improve our model, the improvement is modest. The socioeconomic status of the neighborhood remains the dominant factor in predicting Boston housing values.
+
+## NHANES Data Analysis
+
+### Objective
+
+The goal of this analysis is to develop a multiple regression model to predict Body Mass Index (BMI) using data from the National Health and Nutrition Examination Survey (NHANES). The model incorporates three predictor variables: age, smoking habits, and physical activity for individuals between the age of 18 and 70. This approach aims to provide insights into how these factors collectively influence BMI, enhancing our understanding of their relationships within the context of public health.
+
+### Data Loading
+
+```{r}
+library(NHANES)
+data(NHANES)
+str(NHANES)
+
+```
+
+### Data Understanding & Preperation
+
+We create a customized dataset named SMOKERS for our analysis, extracting key variables; BMI (Body Mass Index), Age, SmokeNow (current smoking status), and PhysActive (physical activity level), while limiting the data to individuals between 18 and 70 years old. Upon exploring the SMOKERS dataset, we discover that 58% of the SmokeNow values are missing, while only 0.7% of the BMI data is absent. To address the substantial missing data in SmokeNow, we opt for mode imputation to fill in these gaps, recognizing the importance of correcting for such a large proportion of missing values. For the BMI variable, given the minimal missing data, we choose to remove those records entirely.
+
+```{r}
+# Load the dplyr package (or the entire tidyverse)
+#library(dplyr)
+
+# Then run your code
+SMOKERS = NHANES %>% 
+  select(BMI, Age, SmokeNow, PhysActive) %>%
+  filter(Age >= 18 & Age <= 70)
+```
+
+```{r}
+str(SMOKERS)
+```
+
+```{r unique values in PhysActive and SmokeNow}
+unique(SMOKERS[, c("PhysActive", "SmokeNow")])
+```
+
+```{r}
+# Count missing values for each column
+colSums(is.na(SMOKERS))
+```
+
+```{r}
+# percentage of missing values 
+colMeans(is.na(SMOKERS))
+```
+
+"mode imputation" - replacing missing values with the most common value in the dataset.
+
+```{r}
+# Or if it's a categorical variable, replace with the most frequent value:
+SMOKERS$SmokeNow[is.na(SMOKERS$SmokeNow)] <- names(which.max(table(SMOKERS$SmokeNow, useNA = "no")))
+```
+
+```{r}
+colSums(is.na(SMOKERS))
+```
+
+```{r}
+# drop the missing values in BMI
+library(dplyr)
+SMOKERS <- SMOKERS %>% filter(!is.na(BMI))
+```
+
+```{r}
+colSums(is.na(SMOKERS))
+```
+
+### Exploratory Data Analysis
+
+In our exploratory data analysis of the SMOKERS dataset, we created two fundamental visualizations to understand the data distribution and relationships.
+
+The histogram distribution of BMI shows a right-skewed pattern, with the majority of individuals clustered between 20 and 40 BMI, peaking around 25–30, which suggests a concentration of participants in the overweight category. The tail extends toward higher BMI values, with fewer individuals exceeding 40, indicating a smaller proportion of obese individuals. This skewed distribution may reflect underlying factors such as smoking status or physical activity levels, which could be further explored with the dataset’s additional variables.
+
+```{r histogram for BMI}
+ggplot(SMOKERS, aes(x = BMI)) +
+  geom_histogram(fill = "steelblue", binwidth = 2, color="white") +
+  labs(title = "Distribution of BMI",
+       x = "BMI",
+       y = "Count") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+The boxplot reveals significant relationships between BMI, smoking status, and physical activity.
+
+```{r boxplot}
+ggplot(SMOKERS, aes(x = SmokeNow, y = BMI, fill = PhysActive)) +
+  geom_boxplot() +
+  labs(title = "BMI by Smoking Status and Physical Activity",
+       x = "Smoking Status",
+       y = "BMI") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Physically active individuals (represented by teal boxes) consistently demonstrate lower BMI values than their physically inactive counterparts (shown in red boxes) across both smoking categories. The median BMI for physically active participants is approximately 25-27, while physically inactive individuals show median BMI values around 30-32. Notably, non-smokers who are physically inactive exhibit the highest median BMI, with their interquartile range showing greater variability than other groups. Several outliers appear in the upper BMI range (60-80), particularly among physically inactive individuals, suggesting extreme cases that deviate from the general pattern. This visualization supports the potential effectiveness of a multiple linear regression model using smoking status (SmokeNow) and physical activity (PhysActive) as predictors of BMI. The clear separation between physically active and inactive groups indicates that physical activity likely has a stronger association with BMI than smoking status (as physical activity increases, BMI tends to decrease) , though both variables appear to contribute to BMI variations.
+
+## Train-Test Split
+
+The provided code implements a crucial data preprocessing technique called train-test splitting for the SMOKERS dataset. 75% of the data is randomly chosen for training the model. The remaining 25% is kept aside for testing. This way, the model learns from the training data and is then evaluated on new, unseen data. This separation is important because it helps ensure that the model doesn't just memorize the training data (overfitting), but can actually perform well when making predictions on different data. It also provides a realistic assessment of how well the model will work in real-world situations, confirming that the relationships between factors like age, smoking status, physical activity, and BMI remain consistent.
+
+```{r}
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Create a data split (75% train, 25% test)
+SMOKERS_split = SMOKERS %>%
+  mutate(id = row_number()) %>%
+  sample_frac(0.75)
+
+# Add id to original dataset
+SMOKERS = SMOKERS %>% mutate(id = row_number())
+
+# Create train and test datasets
+train_data2 = SMOKERS_split
+test_data2 = anti_join(SMOKERS, SMOKERS_split, by = "id") # Remaining 25%
+```
+
+### Model Implementation & Explanation
+
+For our analysis of the SMOKERS dataset, we implemented multiple linear regression model. This model is used to predict the Body Mass Index (BMI) using three predictor variables: age, smoking habits, and physical activity.
+
+### Perform Multiple Linear Regession
+
+Multiple linear regression is a statistical method used to model the relationship between one dependent variable (here, BMI) and multiple independent variables (Age, SmokeNow, PhysActive). The goal is to find a linear equation that best predicts BMI based on these predictors. This analysis helps us understand how Age, smoking habits (SmokeNow), and physical activity (PhysActive) collectively influence BMI.
+
+```{r}
+# Fit linear regression model on training data
+model = lm(BMI ~ Age + SmokeNow + PhysActive, data = train_data2)
+
+# View model summary
+summary(model)
+```
+
+```{r}
+# Calculate MSE for training data
+train_mse2 = mean((train_data2$BMI - predict(model, train_data2))^2)
+
+# Calculate MSE for test data
+test_mse2 = mean((test_data2$BMI - predict(model, test_data2))^2)
+  
+# Print results
+print(paste("Training MSE:", round(train_mse2, 2)))
+print(paste("Test MSE:", round(test_mse2, 2)))
+
+```
+
+```{r}
+# You may also want to calculate R-squared for both sets
+train_r2 = summary(model)$r.squared
+# For test data, calculate R-squared manually
+y_test = test_data2$BMI
+y_pred = predict(model, test_data2)
+test_r2 = 1 - (sum((y_test - y_pred)^2) / sum((y_test - mean(y_test))^2))
+
+print(paste("Training R-squared:", round(train_r2, 4)))
+print(paste("Test R-squared:", round(test_r2, 4)))
+```
+
+### Results & Discussion
+
+-   **Model Performance**:
+
+    -   Training MSE: 45.47
+
+    -   Test MSE: 43.31
+
+    -   Training R-squared: 0.0318
+
+    -   Test R-squared: \~0.034
+
+    The test error is slightly lower than the training error, indicating no major overfitting. However, the low R-squared values show that only around 3% of the variation in BMI is explained.
+
+-   **Key Model Results**:
+
+    -   **Intercept**: 27.68
+
+    -   **Age**: Coefficient = 0.051 (p \< 0.001) — BMI increases slightly with age.
+
+    -   **Physical Activity**: Coefficient for “Yes” = -1.77 (p \< 0.001) — Being physically active is associated with a lower BMI.
+
+    -   **Smoking Status**: Coefficient for “Yes” = -0.126 (p = 0.604) — No significant effect on BMI.
+
+-   **Interpretation**:
+
+    -   Physical activity appears to be a meaningful predictor of lower BMI.
+
+    -   Age has a modest positive effect on BMI.
+
+    -   Smoking status shows no clear link to BMI in this model, which may be due to high missing data (58% imputed).
+
+    -   A **Residual Standard Error** of 6.746 means the model’s BMI predictions can be off by a fair margin.
+
+-   **Healthcare Context**:
+
+    -   The low R-squared (3.18%) suggests many other factors (e.g., diet, genetics) are important for explaining BMI.
+
+    -   These findings provide a starting point, but more comprehensive data and variables are needed for stronger predictive power in public health settings.
