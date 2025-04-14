@@ -1,0 +1,148 @@
+---
+title: "Classification_pt2"
+author: "Gladys Dalla"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(class)
+library(ISLR2)
+library(tidyverse)
+```
+
+# 1. Introduction
+
+For this example, we use 'SMarket' dataset which contains stoch market data  between 2001 - 2005
+
+##2. Data Import & Train/Test Set Segmentation
+
+```{r}
+data("Smarket")
+smarket.tbl = as_tibble(Smarket)
+
+# Segment Data
+train = smarket.tbl %>% filter(Year < 2005) # Training is before 2005
+test = smarket.tbl %>% filter (Year = 2005)
+
+# Define predictors and response
+train.X = train %>% select(Lag1, Lag2) %>% as.matrix()
+test.X = test %>% select(Lag1, Lag2) %>% as.matrix()
+
+train.Y = train$Direction  
+test.Y = test$Direction
+
+```
+## 3. Train and Predict via knn
+```{r}
+# pick k=3
+knn.pred = knn(train.X, test.X, train.Y, k=3)
+```
+
+```{r}
+conf.matrix = table(Predicted = knn.pred, Actual = test.Y)
+print(conf.matrix)
+
+# Compute Accuracy
+accuracy = mean(knn.pred == test.Y)
+accuracy
+```
+
+## 5. Experiment with Different K Value
+
+```{r}
+# set.seed(123)
+knn.pred_4 = knn(train.X, test.X, train.Y, k=4)
+mean(knn.pred_4 == test.Y)
+
+knn.pred_5 = knn(train.X, test.X, train.Y, k=5)
+mean(knn.pred_5 == test.Y)
+
+knn.pred_6 = knn(train.X, test.X, train.Y, k=6)
+mean(knn.pred_6 == test.Y)
+```
+
+## 6. Plot Across Different K Values
+
+```{r}
+train.X = scale(train.X)
+test.X = scale(test.X)
+
+# Function to compute average error for a given K over multiple itterations
+computer_avg_error = function(k, num_iter = 50) {
+  errors = replicate(num_iter, {
+    knn_pred = knn(train.X, test.X, train.Y, k=k)
+    mean(knn_pred != test.Y) #Misclassification
+  })
+}
+
+# Compute error for different values of k
+k_values = tibble(K = seq(1,20, by 1)) %>% 
+  mutate(Avg_Error_Rate = map_dbl(K, ~ computer_avg_error(.x,num_iter = 100)))
+
+```
+
+
+```{r}
+# Plot the averaged error rates
+ggplot(k_values, aes(x=K, y=Avg_Error_Rate)) +
+  geom_line(color = 'blue')+
+  geom_point(size = 2) +
+  labs(title = "Vizualization Optimal K in KNN (Error)",
+       x = "Number of Neighbors (K)",
+       y = "Average Misclassification Error Rate")
+```
+
+# K-Means Clustering
+
+```{r}
+x,tbl = tibble(
+  X1 = rnorm(50)
+  X2 = rnorm(50)
+)
+
+x.tbl = x.tbl %>% 
+  mutate(X1 = ifelse(row_number() <= 25,X1 + 3, X1),
+         X2 = ifelse(row_number() <= 25, X2 -4, X2))
+        
+```
+
+##2. Apply K-Means Clustering
+```{r}
+# k = 4
+km.out = kmeans(x.tbl, center = 4, nstart = 20)
+
+x.tbl = x.tbl %>% 
+  mutate(Cluster = as.factor(km.out$cluster))
+```
+
+##3. Vizualize Clustering
+```{r}
+ggplot(x.tbl, aes(x=X1, y=X2, color = Cluster)) +
+  geom_point(size = 3) +
+  labs(title = "K-Means Clustering Results (k=4)")
+```
+
+## 4. Choosing Optimal K (Elbow Method)
+
+```{r}
+elbow = tibble(K = 1:20) %>% 
+  mutate(Total_WSS = map_dbl(k, ~kmeans(x.tbl %>% select(X1,X2), centers = .x,nstart=20)$tot.withinss))
+
+ggplot(elbow, aes(x=K, y = Total_WSS))+
+  geom_line() +
+  geom_point() +
+  scale_x_continous(breaks = 1:20)+
+  labs(title = "Elbow Plot of Optimal K",
+       x = "Number of Clusters(K)",
+       y = "Total Within-Cluster Sum of Squares")
+
+```
+
+

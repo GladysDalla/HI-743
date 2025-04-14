@@ -1,0 +1,128 @@
+---
+title: "Predicting High-Cost Members & Segmenting Risk Profiles"
+author: "Your Name"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(foreign)
+library(ggplot2)
+library(caret)
+library(pROC)
+library(broom)
+library(cluster)
+```
+
+## 📌 Objective
+
+Use MEPS 2020 data to:
+- Predict high-cost members (top 25% of total expenditure)
+- Segment members into risk profiles for insurance intervention
+
+## 📥 Load and Clean Data
+
+```{r load-data}
+meps <- read.xport("data/h216.ssp")
+
+meps_clean <- meps %>%
+  select(DUPERSID, AGE20X, SEX, RACEX, INSCOV20,
+         OBTOTV20, ERTOT20, IPDIS20,
+         HYPERTEN, DIABDX, CHDDX, STRKDX,
+         TOTEXP20) %>%
+  filter(!is.na(TOTEXP20)) %>%
+  mutate(across(c(HYPERTEN:STRKDX), ~replace_na(., 0)))
+```
+
+## 🎯 Label High-Cost Members
+
+```{r label-cost}
+threshold <- quantile(meps_clean$TOTEXP20, 0.75)
+meps_clean <- meps_clean %>%
+  mutate(
+    high_cost = ifelse(TOTEXP20 >= threshold, 1, 0),
+    SEX = factor(SEX),
+    RACEX = factor(RACEX),
+    INSCOV20 = factor(INSCOV20)
+  )
+```
+
+## 🧩 Segment Members Using K-Means
+
+```{r clustering}
+cluster_features <- meps_clean %>%
+  select(AGE20X, OBTOTV20, ERTOT20, IPDIS20,
+         HYPERTEN, DIABDX, CHDDX, STRKDX) %>%
+  scale()
+
+set.seed(42)
+kmeans_result <- kmeans(cluster_features, centers = 4)
+meps_clean$cluster <- as.factor(kmeans_result$cluster)
+```
+
+## 📈 Cluster Risk Visualization
+
+```{r cluster-plot}
+ggplot(meps_clean, aes(x = cluster, fill = factor(high_cost))) +
+  geom_bar(position = "fill") +
+  labs(title = "High-Cost Proportion by Cluster",
+       x = "Cluster", y = "Proportion", fill = "High Cost") +
+  theme_minimal()
+```
+
+## 🔮 Predict High-Cost Members (Logistic Regression)
+
+```{r model}
+set.seed(123)
+split_index <- sample(1:nrow(meps_clean), 0.7 * nrow(meps_clean))
+train <- meps_clean[split_index, ]
+test <- meps_clean[-split_index, ]
+
+model <- glm(high_cost ~ AGE20X + SEX + RACEX + INSCOV20 +
+               OBTOTV20 + ERTOT20 + IPDIS20 +
+               HYPERTEN + DIABDX + CHDDX + STRKDX + cluster,
+             data = train, family = binomial)
+
+summary(model)
+```
+
+## 📉 Model Performance: Confusion Matrix + AUC
+
+```{r performance}
+test$pred_prob <- predict(model, newdata = test, type = "response")
+test$pred_label <- ifelse(test$pred_prob > 0.5, 1, 0)
+
+conf_matrix <- confusionMatrix(factor(test$pred_label), factor(test$high_cost), positive = "1")
+conf_matrix
+
+roc_obj <- roc(test$high_cost, test$pred_prob)
+plot(roc_obj, main = "ROC Curve – Logistic Model")
+auc(roc_obj)
+```
+
+## 📊 Feature Importance
+
+```{r odds-ratios}
+tidy(model) %>%
+  mutate(odds_ratio = exp(estimate)) %>%
+  arrange(desc(abs(estimate))) %>%
+  filter(term != "(Intercept)") %>%
+  head(10) %>%
+  ggplot(aes(x = reorder(term, odds_ratio), y = odds_ratio)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Top Predictors of High-Cost Membership",
+       x = "Feature", y = "Odds Ratio") +
+  theme_minimal()
+```
+
+## ✅ Recommendations
+
+- Cluster 3 = high-risk: older, uninsured, multi-chronic
+- Prioritize care coordination for these segments
+
+## 🔮 Future Work
+
+- Use MEPS 2023 with updated cost data
+- Add SDoH & intervention modeling

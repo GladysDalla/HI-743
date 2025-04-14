@@ -1,0 +1,88 @@
+---
+title: "Insurance Risk Prediction"
+author: "Gladys Dalla"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# 1. INTRODUCTION
+
+Can we identify which members are likely to become high-cost before it happens — so we can intervene earlier and manage their care more effectively?
+
+## 1.1. Problem Statement
+In health insurance, a small group of people often accounts for most of the healthcare costs. These high-cost members usually have serious or multiple health conditions.
+
+The challenge is: insurers often only find out after the member has already racked up high medical bills. By then, it’s too late to prevent those costs.
+
+This leads to:
+
+    Higher overall spending
+
+    Missed opportunities to help patients earlier
+
+    Poor use of care management resources
+    
+### 1.1.1. Business Goal
+
+This project aims to help health insurers:
+
+    Predict who is likely to become high-cost
+
+    Group members into risk profiles based on age, insurance type, medical history, and care usage
+
+By doing this, insurers can:
+
+    Reach out to at-risk members before costs spike
+
+    Offer better care plans or preventive services
+
+    Use care management teams more effectively
+
+    Price plans more accurately
+    
+### 1.1.2. Data Used    
+
+We’re using real-world data from the Medical Expenditure Panel Survey (MEPS) — a large U.S. government health survey. Specifically:
+
+    2022 Full Year Consolidated File (HC-243) — the most recent available file with full healthcare cost data (as of April 2025)
+    
+### 1.1.3. What the Project Does
+
+The project uses two key steps:
+
+    1. Segmentation (Clustering)
+    Groups members into different types (e.g., “young + healthy” vs. “older + multi-chronic + uninsured”)
+
+    2. Prediction (Logistic Regression)
+    Builds a model to predict whether someone will end up in the top 25% of healthcare spenders.
+
+## 1.2 Load Data
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(ggplot2)
+library(readr)
+
+url = "https://meps.ahrq.gov/mepsweb/data_files/pufs/h243/h243dat.zip"
+download.file(url, temp <- tempfile())
+meps_path = unzip(temp, exdir = tempdir())
+source("https://meps.ahrq.gov/mepsweb/data_stats/download_data/pufs/h243/h243ru.txt")
+unlink(temp)
+meps = h243
+
+```
+
+# 2. 
+
+```{r}
+head(meps)
+summary(meps$TOTEXP22)
+
+```
+
+```{r}
+
+```
+
