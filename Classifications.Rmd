@@ -1,0 +1,551 @@
+---
+title: "Classification Models"
+output: html_document
+date: "2025-02-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(nnet)
+library(ISLR2)
+```
+
+# 1. Introduction
+
+In this report, we explore different classification models using logistic regression techniques. These models are essential tools in predicting binary and multi-class outcomes based on input features. We begin by examining binary classification using logistic regression and multiple logistic regression, followed by an exploration of multinomial logistic regression to handle cases with more than two outcome categories. The models are applied to two datasets from the ISLR2 package: **Default** and **Carseats**.
+
+# 2. Data
+
+We exploring the **Default dataset**, which contains credit card default information. This dataset includes variables such as **balance**, **income**, and **student status**, and **a binary variable** default indicating whether a person defaulted on their credit card debt.
+
+```{r}
+data = Default
+str(data)
+
+
+```
+
+## 2.1 Visualizing the Data
+
+Before building any models, we explore the data visually to detect trends, distributions, and potential relationships between variables.
+
+### Distribution of Balance
+
+```{r}
+ggplot(data, aes(x=balance , fill=default))+
+  geom_histogram(bins = 30, alpha=0.7, position='identity')+
+  labs(title = "Distribution of Balance by Default Status",
+       x= "Balance",
+       y= "Count")
+
+```
+
+This histogram shows how the distribution of credit card balances differs between those who defaulted and those who did not. A higher concentration of defaults appears at higher balance values.
+
+### Distribution of Income
+
+```{r}
+ggplot(data, aes(x=income, fill = default))+
+  geom_histogram(bins = 30, alpha = 0.7, position = 'identity')+
+  labs(title = "Distribution of Income by Default Status",
+       x= "Income",
+       y= "Count")
+
+```
+
+This chart examines whether income is a strong indicator of default. Unlike balance, income may have a less distinct pattern in separating defaulters.
+
+### Distribution of Income by Student Status
+
+```{r}
+ggplot(data, aes(x=income, fill = student))+
+  geom_histogram(bins = 30, alpha = 0.7, position = 'identity')+
+  labs(title = "Distribution of Income by Student Status",
+       x= "Income",
+       y= "Count")
+
+```
+
+This histogram compares income levels between students and non-students regardless of whether they defaulted or not. It helps us examine how income levels vary between students and non-students. Students tend to have lower incomes than non-students, that suggests why student status could be an important predictor when modeling default behavior, especially when considered in combination with income.
+
+### Student Status by Default
+
+```{r}
+ggplot(data, aes(x=student, fill = default))+
+  geom_bar(position = 'dodge')+
+  labs(title = "Default Status by Student Status",
+       x= "Students",
+       y= "Count")
+
+```
+
+A bar chart showing default rates among students and non-students, providing insight into whether student status is associated with higher or lower default risk.
+
+## 4. Logistic Regression
+
+### Fitting the Model
+
+Logistic regression is used for binary classification problems. It estimates the probability that a binary outcome is "Yes" (or 1) based on one or more predictor variables. Here, we use only balance to predict the probability of default.
+
+```{r}
+logit_model = glm(default ~ balance, data=data, family=binomial)
+summary(logit_model)
+
+```
+
+The model suggests that as **balance** increases, the **probability of default** also increases. Since the coefficient for balance is positive and statistically significant, individuals with higher balances are more likely to default.
+
+### Predicted Probabilities
+
+```{r}
+data$predicted_prob = predict(logit_model, type="response")
+head(data)
+
+```
+
+We calculate the predicted probabilities of default for each observation. These probabilities range between 0 and 1.
+
+### Evaluate Model Performance
+
+After fitting the logistic regression model, we evaluate its performance by comparing the predicted default labels with the actual values. We use a classification threshold of 0.5, meaning if the predicted probability of default is greater than 0.5, we classify the case as "Yes" (default); otherwise, we classify it as "No" (non-default).We then constructed a confusion matrix.
+
+```{r}
+threshold = 0.5
+data$predicted_default = ifelse(data$predicted_prob > threshold, "Yes", "No")
+conf_matrix = table(data$predicted_default, data$default)
+conf_matrix
+
+```
+
+Interpretation:
+
+```         
+True Negatives (TN): 9625 individuals were correctly predicted not to default.
+
+True Positives (TP): 100 individuals were correctly predicted to default.
+
+False Positives (FP): 42 individuals were incorrectly predicted to default, but they actually didn’t.
+
+False Negatives (FN): 233 individuals were incorrectly predicted not to default, but they actually did.
+```
+
+This gives insight into the types of errors the model is making:
+
+```         
+It is quite good at identifying non-defaulters (high TN).
+
+It misses a substantial number of defaulters (high FN), which is important if the cost of failing to detect a default is high.
+```
+
+### Calculating Accuracy
+
+```{r}
+accuracy = sum(diag(conf_matrix)) / sum(conf_matrix)
+accuracy
+
+```
+
+the model achieves 97.25% accuracy, but that high number can be misleading in imbalanced datasets like this one (most people don't default). In such cases, it's also important to consider:
+
+```         
+Sensitivity (Recall for "Yes") = TP / (TP + FN) = 100 / (100 + 233) ≈ 0.30
+
+Specificity (Recall for "No") = TN / (TN + FP) = 9625 / (9625 + 42) ≈ 0.996
+```
+
+# 5 Multiple Logistic Regression
+
+We now build a more complex logistic regression model by including balance, income, and an **interaction term** between income and student. This allows the model to account for different income effects based on student status.
+
+## 5.1 Fitting the model
+
+Here we will include an **interaction term** between 'income' and 'student' that will allow the effect of 'income' on 'default' to differ between 'student' and 'non-student'. The interaction term captures how the relationship between income and default varies for students vs. non-students.
+
+```{r}
+logit_mult_model = glm(default ~ balance + income * student, data=data, family=binomial)
+summary(logit_mult_model)
+
+```
+
+## 5.2 Evaluating the Model
+
+After fitting the multiple logistic regression model, we evaluate its performance by predicting outcomes and comparing them to actual labels. This allows us to assess whether including additional predictors (like income and its interaction with student) improves the model’s performance.
+
+```{r}
+data$mult_predicted_prob = predict(logit_mult_model, type = "response")
+data$mult_predicted_default = ifelse(data$mult_predicted_prob > threshold, "Yes", "No")
+
+
+conf_matrix_mult = table(data$mult_predicted_default, data$default)
+conf_matrix_mult
+
+```
+
+This confusion matrix summarizes how well your multiple logistic regression model predicted credit card defaults. It compares the predicted default statuses ("Yes" or "No") with the actual default statuses in the data.
+
+9628 people were correctly predicted not to default (True Negatives). 227 people actually defaulted but were predicted not to (False Negatives). 39 people were predicted to default but actually did not (False Positives). 106 people were correctly predicted to default (True Positives).
+
+```{r}
+accuracy_mult = sum(diag(conf_matrix_mult)) / sum(conf_matrix_mult)
+accuracy_mult
+
+```
+
+### Conclusion.
+
+The model is very accurate overall (97.34% accuracy).It is especially good at predicting non-defaulters (high TN count). However, it misses quite a few actual defaulters (227 out of 333), which is important if the goal is to minimize financial risk by identifying likely defaulters.
+
+Accuracy Isn’t Everything. While 97.34% accuracy is great, one should note that the data is imbalanced (many more "No" than "Yes"), therefore the model may be biased toward predicting "No" to maintain high accuracy.That’s why metrics like recall, precision, and F1-score are also important especially when detecting defaulters is critical.
+
+# 6. Multinomial logistic Regression
+
+Multinomial logistic regression is used when the outcome variable has more than two categories. Here, we use the Carseats dataset and classify sales into three categories: Low, Medium, and High.
+
+## 6.1 Load the Data
+
+```{r}
+data2 = Carseats
+data2$SalesCategory = cut(data2$Sales, breaks = 3, labels = c("Low", "Medium", "High"))
+
+```
+
+The continuous Sales variable is transformed into a categorical variable for classification.
+
+## 6.2 Fit the Model
+
+We used a multinomial logistic regression model to predict the sales category of car seats; labeled as **"Low", "Medium", or "High"**. The model tries to understand how the features **Price**, **Income**, and **Advertising** influence whether a product falls into each of these sales categories.
+
+```{r}
+multi_model = multinom(SalesCategory ~ Price + Income + Advertising, data = data2)
+summary(multi_model)
+
+```
+
+The output gives us two sets of results: one for "Medium" sales and another for "High" sales, both compared to the base category "Low". From the coefficients, we can see that higher prices are associated with a lower chance of being in the "Medium" or "High" sales category. This makes sense as when prices go up, fewer units might be sold. On the other hand, more advertising tends to increase the chances of higher sales, as both "Medium" and "High" sales categories have positive coefficients for the advertising variable. Income has a small positive effect, suggesting that areas with higher income might see slightly better sales, though the effect is relatively small.
+
+The model also provides standard errors, which show how confident we are in the estimates. Smaller values mean more precise estimates.
+
+## 6.3 Make Predictions
+
+```{r}
+data2$nomial_predicted_SalesCat = predict(multi_model)
+head(data2)
+
+```
+
+This adds a new column **nomial_predicted_SalesCat** to data2, which contains the predicted sales category ("Low", "Medium", or "High") for each observation, based on the model's understanding of Price, Income, and Advertising. We can now compare the predicted categories with the actual sales category (data2\$SalesCategory) to evaluate the model’s accuracy.
+
+## 6.4 Evaluate Model
+
+We are using a confusion matrix to compare the model’s predictions to the actual sales categories.
+
+```{r}
+conf_matrix_multi = table(data2$nomial_predicted_SalesCat, data2$SalesCategory)
+conf_matrix_multi
+
+```
+
+Each row shows the model's predictions, and each column shows the actual category. Here's how to read it:
+
+```         
+25 observations were correctly predicted as "Low".
+
+224 observations were correctly predicted as "Medium".
+
+3 observations were correctly predicted as "High".
+
+However:
+
+    77 actual "Low" cases were predicted as "Medium".
+
+    48 actual "High" cases were predicted as "Medium".
+
+    6 actual "Medium" cases were incorrectly predicted as "High".
+
+    17 actual "Medium" cases were predicted as "Low".
+```
+
+This suggests the model tends to favor the "Medium" category, likely because it is the most common in the dataset.It struggles with the "High" category, predicting only 3 of them correctly, while misclassifying many as "Medium".The "Low" category also has many misclassifications into "Medium". Overall, while the model shows promise, its performance could be improved for the less frequent categories, possibly by using additional predictors or rebalancing the dataset.
+
+```{r}
+accuracy_multi = sum(diag(conf_matrix_multi)) / sum(conf_matrix_multi)
+accuracy_multi
+
+```
+
+The overall accuracy of the multinomial logistic regression model is 63%, meaning that 63% of the predicted sales categories matched the actual values. While 63% accuracy shows that the model is doing better than random guessing, it also indicates that there is considerable room for improvement — especially in predicting the "Low" and "High" sales categories. This relatively modest accuracy reflects what we observed in the confusion matrix: the model tends to classify most cases as "Medium", which might be the dominant class in the data. To boost performance, especially for the underrepresented categories, further steps such as feature engineering, class balancing, or trying more advanced classification methods (like random forests or gradient boosting) may be beneficial.
+
+# 7 Assignment Section
+
+## 7.1 Background
+
+Diabetes is a chronic disease affecting millions of individuals worldwide. Early detection through predictive modeling can help guide prevention and treatment. In this assignment, you will use logistic regression to predict whether an individual has diabetes using basic health information.
+
+We will use the Pima Indians Diabetes Dataset, a commonly used dataset in health informatics available from the UCI Machine Learning Repository and built into the mlbench R package.
+
+## 7.2 Simple Logistic Regression
+
+We begin with a simple logistic regression model using a single predictor **glucose level** to determine the probability of diabetes.
+
+### Load Data
+
+```{r}
+# install.packages("mlbench")
+library(mlbench)
+data("PimaIndiansDiabetes")
+df = PimaIndiansDiabetes
+
+```
+
+## 7.3 Data Exploration and Summary Figures
+
+It's important to understand the structure of the data and explore key variables.
+
+```{r}
+
+summary(df)
+str(df)
+
+```
+
+The dataset has 768 observations and 9 variables, including:
+
+```         
+pregnant: number of times pregnant
+
+glucose: plasma glucose concentration
+
+pressure: diastolic blood pressure
+
+triceps: triceps skinfold thickness
+
+insulin: serum insulin level
+
+mass: BMI (body mass index)
+
+pedigree: diabetes pedigree function (genetic likelihood)
+
+age: age in years
+
+diabetes: the target variable (factor with 2 levels: "neg" and "pos")
+```
+
+All of the variables are numeric except for the target variable diabetes, which is a factor.
+
+The summary statistics revealed that several variables such as **glucose**, **pressure**, **triceps**, **insulin**, and **mass** contain minimum values of 0, which are not biologically plausible. For example, a glucose level or BMI of 0 is unrealistic in a living person and likely represents missing or incorrectly recorded data. These zeros should be treated as missing values (NA) before proceeding with modeling.
+
+## 7.4 Data Cleaning
+
+### Identify Invalid (Zero) Values
+
+In this dataset, some medical measurements like glucose, pressure, triceps, insulin, and mass should not realistically be zero. We’ll check how many such zero values exist in each of these columns.
+
+```{r}
+sapply(df[, c("glucose", "pressure", "triceps", "insulin", "mass")], function(x) sum(x == 0))
+
+```
+
+### Replace Zeros with NA and check How Many NAs Exist Now
+
+```{r}
+df[, c("glucose", "pressure", "triceps", "insulin", "mass")] <- 
+  lapply(df[, c("glucose", "pressure", "triceps", "insulin", "mass")], 
+         function(x) ifelse(x == 0, NA, x))
+
+colSums(is.na(df))
+
+```
+
+### Handling Missing (NA) values using Median imputation.
+
+We chose median imputation over mean or mode because it is better suited for the type of data we're working with. The affected variables; glucose, blood pressure, insulin, and BMI, are all continuous numeric variables. These types of variables often have skewed distributions or extreme outliers (for example, insulin has a maximum value of 846), which can heavily influence the mean. In contrast, the median is more robust to such outliers and provides a more reliable measure of central tendency in these cases. By using median imputation, we preserve the integrity of the dataset without letting extreme values distort our imputed results.
+
+```{r}
+# Define the columns that had zeros turned into NA
+vars_to_impute <- c("glucose", "pressure", "triceps", "insulin", "mass")
+
+# Apply median imputation for each column
+df[vars_to_impute] <- lapply(df[vars_to_impute], function(x) {
+  x[is.na(x)] <- median(x, na.rm = TRUE)
+  return(x)
+})
+
+# Verify that no missing values remain
+colSums(is.na(df))
+
+```
+
+## 7.5 Visualizing the Data
+
+### Distribution of Key Health Indicators by Diabetes Status
+
+```{r}
+
+# Select relevant variables and reshape data to long format
+boxplot_vars <- df %>%
+  select(diabetes, glucose, mass, insulin, age, pregnant) %>%
+  pivot_longer(cols = -diabetes, names_to = "Variable", values_to = "Value")
+
+# Create boxplots
+ggplot(boxplot_vars, aes(x = diabetes, y = Value, fill = diabetes)) +
+  geom_boxplot(alpha = 0.7, outlier.size = 0.8) +
+  facet_wrap(~Variable, scales = "free", ncol = 3) +
+  labs(title = "Distribution of Key Health Indicators by Diabetes Status",
+       x = "Diabetes",
+       y = "Value") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+
+```
+
+The boxplots comparing various health indicators by diabetes status reveal how each variable differs between individuals with and without diabetes. **Glucose** stands out with the most noticeable separation as people with diabetes generally have much higher glucose levels, which supports using it as a primary predictor in the Simple Logistic Regression. **BMI (mass)** also shows a moderate difference, with slightly higher values among diabetic individuals. **Insulin** levels display some variation, though with more spread and overlap, suggesting that while informative, it may not be as strong a standalone predictor. **Age** shows a mild difference, with older individuals slightly more represented in the diabetic group. Lastly, the number of times **pregnant** has some separation, though the overlap is quite large. Overall, these visualizations help justify the inclusion of variables like glucose, BMI, insulin, and age in a multiple logistic regression model, as they appear to be associated with diabetes outcomes to varying degrees.
+
+## 7.6 Fit the Model
+
+We split the data into training and testing sets, then fit a logistic regression model using glucose as the sole predictor.
+
+```{r}
+set.seed(123) # for reproducibility
+
+# Add a unique ID to each row
+df <- df %>%
+  mutate(id = row_number())
+
+# Sample 70% of the data for training
+train <- df %>%
+  sample_frac(0.7)
+
+# Use anti_join to get the remaining 30% for testing
+test <- anti_join(df, train, by = "id")
+
+# Fit using glucose as a predictors of diabetes
+simple_model <- glm(diabetes ~ glucose, data = train, family = binomial)
+summary(simple_model)
+```
+
+### Interpret Coefficients
+
+The logistic regression model shows that glucose is a strong and significant predictor of diabetes. The coefficient for glucose is 0.0428, which means that as a person’s glucose level increases by 1 unit, their odds of having diabetes increase by about 4.4%. This is based on the odds ratio, which is calculated as the exponential of the coefficient. The very small p-value (less than 0.001) indicates that this relationship is statistically significant and unlikely to be due to chance. Overall, the model confirms that higher glucose levels are strongly associated with a greater likelihood of having diabetes.
+
+### Prediction on Test Data
+
+```{r}
+# Predict probabilities of having diabetes in the test set
+test$predicted_prob <- predict(simple_model, newdata = test, type = "response")
+
+# Classify outcomes based on a 0.5 threshold
+test$predicted_class <- ifelse(test$predicted_prob > 0.5, "pos", "neg")
+
+# Generate confusion matrix
+conf_matrix <- table(Predicted = test$predicted_class, Actual = test$diabetes)
+conf_matrix
+
+# Calculate overall accuracy
+accuracy <- mean(test$predicted_class == test$diabetes)
+accuracy
+
+```
+
+### Interpret
+
+The model's predictions were compared to the actual outcomes using a confusion matrix. It correctly identified 130 non-diabetic cases and 37 diabetic cases. However, it also misclassified 44 diabetic individuals as non-diabetic (false negatives) and 19 non-diabetic individuals as diabetic (false positives). The overall accuracy of the model was approximately 72.6%, meaning that about 73 out of every 100 predictions were correct. While this shows that the model performs reasonably well, it also highlights that it misses a fair number of true diabetic cases, which could be important in a real-world healthcare setting. This suggests that while glucose alone is a useful predictor, adding more variables may improve the model’s performance.
+
+## 7.7 Multiple Logistic Regression
+
+```{r}
+# Fit multiple logistic regression model
+multi_model <- glm(diabetes ~ glucose + age + mass + pregnant, data = train, family = binomial)
+
+# View model summary
+summary(multi_model)
+```
+
+### Interpret Coefficients
+
+All four variables have positive coefficients, meaning that increases in any of these values are associated with a higher likelihood of diabetes. Among them, glucose and BMI are the most statistically significant, with p-values less than 0.001, indicating strong evidence of association. The coefficient for glucose (0.037) means that each 1-unit increase in glucose raises the odds of having diabetes by about 3.8%. Similarly, BMI and number of pregnancies also contribute positively to diabetes risk, though to a slightly lesser extent. Age also shows a small positive effect and is statistically significant. Overall, this model improves on the simple version by including more relevant health factors, which helps in capturing a more complete picture of diabetes risk.
+
+### Prediction on Test Data
+
+```{r}
+# Predict on test set
+test$multi_pred_prob <- predict(multi_model, newdata = test, type = "response")
+test$multi_pred_class <- ifelse(test$multi_pred_prob > 0.5, "pos", "neg")
+
+# Confusion matrix
+table(Predicted = test$multi_pred_class, Actual = test$diabetes)
+
+# Accuracy
+mean(test$multi_pred_class == test$diabetes)
+```
+
+### Interpret
+
+The model achieved an accuracy of approximately 76.96%, meaning it correctly predicted diabetes status for about 77% of the individuals. The confusion matrix shows that the model correctly identified 131 non-diabetic (true negatives) and 46 diabetic (true positives) cases. However, it misclassified 35 diabetic individuals as non-diabetic (false negatives) and 18 non-diabetics as diabetic (false positives). Compared to the simple model, which only used glucose, this model shows a slight improvement in accuracy. More importantly, it correctly identifies more diabetic cases, suggesting that including additional predictors like age, BMI, and pregnancy count improves the model’s ability to detect diabetes.
+
+## 7.8 K-Nearest Neighbors Classification
+
+K-Nearest Neighbors (KNN) is a simple, flexible algorithm that makes predictions based on the majority class of the closest data points.
+
+We select four numeric health indicators; **glucose, age, BMI (mass), and number of pregnancies** and standardized them using the scale() function, since KNN is sensitive to differences in scale.
+
+```{r}
+library(class)
+# Step 1: Select and scale the predictors manually
+train_knn <- as.data.frame(scale(train[, c("glucose", "age", "mass", "pregnant")]))
+test_knn  <- as.data.frame(scale(test[, c("glucose", "age", "mass", "pregnant")]))
+
+# Step 2: Set the class labels
+train_labels <- train$diabetes
+test_labels  <- test$diabetes
+
+```
+
+### Fit the Model
+
+We create the training and testing sets and extract the true class labels for each. The model was fit using k = 5, meaning it looked at the 5 nearest neighbors to make each prediction.
+
+```{r}
+# Fit KNN (e.g., k = 5)
+knn_pred <- knn(train = train_knn, test = test_knn, cl = train_labels, k = 5)
+
+```
+
+### Applying the Model to Test Data
+
+```{r}
+# Confusion matrix
+table(Predicted = knn_pred, Actual = test_labels)
+
+# Accuracy
+mean(knn_pred == test_labels)
+```
+
+### Interpret
+
+The results showed that the model correctly predicted 124 non-diabetic and 52 diabetic cases. However, it also misclassified 25 non-diabetics as diabetic (false positives) and 29 diabetics as non-diabetic (false negatives). Overall, the model achieved an accuracy of approximately 76.5%, meaning it correctly classified about three out of four cases. These results suggest that the KNN model, using glucose, age, BMI, and pregnancy count, performs reasonably well in identifying diabetes risk.
+
+## 7.9 Model Comparison and Discussion
+
+```{r echo=FALSE, results='asis', message=FALSE}
+library(knitr)
+library(kableExtra)
+
+model_comparison <- data.frame(
+  Model = c("MLR", "KNN"),
+  `Features Used` = c("glucose, age, mass, pregnant", "glucose, age, mass, pregnant"),
+  Accuracy = c("~76.96%", "~76.5%"),
+  Notes = c("Best balance of performance and interpretability", 
+            "Non-parametric, best at catching positives")
+)
+
+kable(model_comparison, format = "html", caption = "Model Comparison: MLR vs KNN") %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"),
+                position = "left")  # <-- Add this line
+
+```
+
+Comparing KNN to Multiple Logistic Regression (MLR), The MLR model achieved a slightly higher accuracy of 76.96%, while the KNN model, using k = 5, followed closely with an accuracy of 76.52%. While their accuracies were nearly identical, the models behaved differently in terms of prediction errors. The MLR model had fewer false negatives, which means it was slightly better at identifying individuals who truly have diabetes. On the other hand, the KNN model correctly identified more diabetic cases overall (52 true positives) than MLR, but also produced a higher number of false positives.
+
+In summary, MLR provided slightly better balance and fewer misclassifications, making it more reliable in general prediction. However, KNN showed stronger performance in identifying positive cases, which could be valuable in a medical context where missing a diabetic case is more critical than flagging a non-diabetic.

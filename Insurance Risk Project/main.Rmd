@@ -3,60 +3,117 @@ title: "Insurance Risk Prediction"
 author: "Gladys Dalla"
 date: "`r Sys.Date()`"
 output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 # 1. INTRODUCTION
 
-Can we identify which members are likely to become high-cost before it happens — so we can intervene earlier and manage their care more effectively?
+Rising healthcare costs are a significant challenge in the United
+States, with a small percentage of individuals consistently accounting
+for a large share of total medical expenditures.Identifying high-cost
+individuals before their expenses escalate is critical for health
+insurers, providers, and policymakers aiming to deliver more efficient,
+equitable, and proactive care.
 
-## 1.1. Problem Statement
-In health insurance, a small group of people often accounts for most of the healthcare costs. These high-cost members usually have serious or multiple health conditions.
+This project aims to build a predictive model using nationally
+representative data from the Medical Expenditure Panel Survey (MEPS) to
+flag individuals likely to become high-cost.By leveraging demographic,
+insurance, utilization, and clinical information, we can predict
+high-cost membership and segment individuals into risk profiles.
 
-The challenge is: insurers often only find out after the member has already racked up high medical bills. By then, it’s too late to prevent those costs.
+Such a model has the potential to benefit society by:
 
-This leads to:
+-   Enabling early intervention and care coordination for those at risk
+-   Reducing unnecessary hospitalizations and emergency room visits
+-   Helping insurers design better care management and risk-adjusted
+    pricing
+-   Supporting population health initiatives and improving resource
+    allocation
 
-    Higher overall spending
+Ultimately, this approach can help shift the healthcare system from
+reactive to proactive and preventive care, improving outcomes while
+controlling costs.
 
-    Missed opportunities to help patients earlier
+## 1.1. Research Question
 
-    Poor use of care management resources
-    
-### 1.1.1. Business Goal
+Can we identify which health insurance members are likely to become
+high-cost before those costs occur, so that targeted care interventions
+can be applied earlier to reduce overall healthcare expenditure and
+improve outcomes?
 
-This project aims to help health insurers:
+## 1.1.2. Data Used
 
-    Predict who is likely to become high-cost
+We’re using real-world data from the Medical Expenditure Panel Survey
+(MEPS) — a large U.S. government health survey. Specifically the 2022
+Full Year Consolidated File (HC-243) which is the most recent available
+file with full healthcare cost data (as of April 2025)
 
-    Group members into risk profiles based on age, insurance type, medical history, and care usage
+### Predictors, Target Variable, and Hypothesis
 
-By doing this, insurers can:
+-   Target Variable: The primary outcome of interest is total medical
+    expenditure for each individual (TOTEXP22). To transform this into a
+    binary classification problem, a new variable high_cost was created:
 
-    Reach out to at-risk members before costs spike
+    -   Individuals in the top 25% of total expenditures were labeled as
+        high-cost (1).
 
-    Offer better care plans or preventive services
+    -   The remaining 75% were labeled as non-high-cost (0).
 
-    Use care management teams more effectively
+    This transforms the problem into a classification task.
 
-    Price plans more accurately
-    
-### 1.1.2. Data Used    
+-   Predictor Variables:
 
-We’re using real-world data from the Medical Expenditure Panel Survey (MEPS) — a large U.S. government health survey. Specifically:
+    -   Demographic: AGE22X, SEX, RACEV2X
 
-    2022 Full Year Consolidated File (HC-243) — the most recent available file with full healthcare cost data (as of April 2025)
-    
-### 1.1.3. What the Project Does
+    -   Insurance: INSCOV22 (coded as private, public, uninsured)
 
-The project uses two key steps:
+    -   Utilization: OBTOTV22 (office_visits), ERTOT22 (er_visits),
+        IPDIS22(inpatient_discharges)
 
-    1. Segmentation (Clustering)
-    Groups members into different types (e.g., “young + healthy” vs. “older + multi-chronic + uninsured”)
+    -   Clinical Conditions: HIBPDX (Hypertension), DIABDX_M18
+        (Diabetes), CHDDX (Heart Disease), STRKDX (Stroke)
 
-    2. Prediction (Logistic Regression)
-    Builds a model to predict whether someone will end up in the top 25% of healthcare spenders.
+These variables were chosen based on MEPS documentation and
+peer-reviewed research linking them to healthcare spending.
+
+-   Hypothesis:
+
+    -   Individuals with more chronic conditions, higher healthcare
+        utilization, older age, and limited or no insurance coverage are
+        more likely to become high-cost members.
+
+## 1.1.3. What the Project Does
+
+This project applies a two-step machine learning approach to proactively
+identify individuals at risk of incurring high healthcare costs:
+
+**Segmentation (K-Means Clustering)** \* Individuals are grouped into
+distinct population segments based on shared characteristics such as
+age, healthcare utilization, chronic conditions, and insurance status.
+This helps uncover meaningful subgroups—for example, "young and healthy"
+or "older with multiple chronic conditions and limited insurance
+access", which support targeted care planning and resource allocation.
+
+**Prediction (Logistic Regression)** \* A predictive model is built to
+classify individuals based on their likelihood of becoming high-cost
+healthcare users, defined as being in the top 25% of total annual
+expenditures. The model uses demographic, clinical, and utilization data
+along with cluster membership to forecast risk and enable early
+intervention strategies.
+
+Together, these steps support a shift toward data-driven, proactive
+care, allowing providers and insurers to better understand risk profiles
+and act before costs escalate.
 
 ## 1.2 Load Data
+
+This section outlines the process used to programmatically download and
+load the MEPS 2022 Full-Year Consolidated Data File (HC-243) from the
+official MEPS website. The goal is to automate data retrieval so that
+the analysis is reproducible and directly linked to the original public
+dataset.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -80,37 +137,513 @@ unlink(temp)
 meps_2022 = h243
 ```
 
-# 2. 
+# 2. Exploratory Data Analysis (EDA)
+
+Exploratory Data Analysis helps us understand the structure,
+distribution, and quality of the MEPS dataset. This includes checking
+for missing values, understanding distributions of continuous and
+categorical variables, and identifying initial relationships between
+features and high-cost status.
+
+## 2.1. Overview of Dataset
 
 ```{r}
 # View the data
 
 head(meps_2022)
-summary(meps$TOTEXP22)
+# summary(meps_2022$TOTEXP22)
 ```
 
-## 3. 
+The dataset has 22,431 individual records and 1,420 variables covering a
+wide range of domains including demographics, health conditions,
+insurance coverage, healthcare utilization, and total medical
+expenditures. For this analysis, a curated subset of key variables was
+selected to support the objectives of segmentation and high-cost
+prediction.
+
+### Creating a subset dataset
 
 ```{r}
-colnames(meps_2022)
-
-```
-
-
-
-```{r}
-meps_clean <- meps_2022 %>%
-  select(DUPERSID, AGE22X, SEX, RACEV2X, INSCOV22,
+# Select relevant variables
+meps_subset = meps_2022 %>%
+  select(DUPERSID, TOTEXP22, AGE22X, SEX, RACEV2X, INSCOV22,
          OBTOTV22, ERTOT22, IPDIS22,
-         HIBPDX, DIABDX_M18, CHDDX, STRKDX,
-         TOTEXP22) %>%
-  filter(!is.na(TOTEXP22)) %>% # keep only rows with expenditure values
-  mutate(across(c(HIBPDX, DIABDX_M18, CHDDX, STRKDX), ~replace_na(., 0))) %>% # fill NAs with 0 for chronic flags
-  mutate(
-    SEX = factor(SEX, levels = c(1, 2), labels = c("Male", "Female")),  # recode 1 = Male, 2 = Female
-    RACEV2X = factor(RACEV2X), # treat race as categorical
-    INSCOV22 = factor(INSCOV22) # treat insurance coverage as categorical
-  )
+         HIBPDX, DIABDX_M18, CHDDX, STRKDX)
+
+# Create high_cost binary target (top 25%)
+threshold = quantile(meps_subset$TOTEXP22, 0.75, na.rm = TRUE)
+
+meps_subset = meps_subset %>%
+  mutate(high_cost = ifelse(TOTEXP22 >= threshold, 1, 0))
+
+# View structure
+str(meps_subset)
+
 ```
 
+The curated dataset contains 22,431 individual records and 14 variables.
+The target variable is TOTEXP22, representing total annual medical
+expenditures, and a derived binary variable high_cost identifies
+individuals in the top 25% of spenders.
 
+### Checking for missing values
+
+```{r}
+# Check for missing values
+colSums(is.na(meps_subset))
+```
+
+### Cleaning the dataset
+
+To prepare the curated dataset for analysis, the variables were renamed
+for clarity (e.g., AGE22X to age, TOTEXP22 to total_expenditure, and
+DUPERSID to person_id). Since the dataset contained no missing values in
+these fields, no imputation or filtering was necessary. Categorical
+variables such as sex, race, and insurance were converted to factor
+types and recoded with descriptive labels. Specifically, sex was mapped
+to “Male” and “Female”; race (from RACEV2X) was labeled using standard
+MEPS race/ethnicity codes (e.g., 1 = White, 2 = Black, 4 = Asian, 12 =
+Hispanic); and insurance (from INSCOV22) was categorized as “Private,”
+“Public,” or “Uninsured” based on MEPS documentation. These value
+mappings were obtained from the official MEPS HC-243 codebook and data
+documentation.
+
+```{r}
+meps_clean = meps_subset %>%
+  select(
+    person_id = DUPERSID,
+    age = AGE22X,
+    sex = SEX,
+    race = RACEV2X,
+    insurance = INSCOV22,
+    office_visits = OBTOTV22,
+    er_visits = ERTOT22,
+    inpatient_discharges = IPDIS22,
+    hypertension = HIBPDX,
+    diabetes = DIABDX_M18,
+    heart_disease = CHDDX,
+    stroke = STRKDX,
+    total_expenditure = TOTEXP22,
+    high_cost = high_cost
+  ) %>%
+  mutate(
+    sex = factor(sex, levels = c(1, 2), labels = c("Male", "Female")), # recode 1 = Male, 2 = Female
+    # treat race as categorical
+    race = factor(race, 
+                  levels = c(1, 2, 3, 4, 5, 6, 12),
+                  labels = c("White", "Black", "AI/AN", "Asian", 
+                             "NH/PI", "Multiple", "Hispanic")),
+    # treat insurance coverage as categorical
+    insurance = factor(insurance,
+                       levels = c(1, 2, 3),
+                       labels = c("Private", "Public", "Uninsured"))
+  )
+head(meps_clean)
+```
+
+## 2.2. Distribution
+
+```{r}
+ggplot(meps_clean, aes(x = total_expenditure)) +
+  geom_histogram(binwidth = 1000, fill = "steelblue", color = "green") +
+  scale_x_continuous(labels = scales::comma) +
+  labs(title = "Distribution of Total Medical Expenditure",
+       x = "Total Expenditure (USD)",
+       y = "Count")
+```
+
+**Observation:**
+
+Total medical expenditures are highly right-skewed, with most
+individuals incurring low costs and a small proportion experiencing
+extremely high expenditures. This justifies transforming the target
+variable (total_expenditure) into a binary classification (high_cost)
+for predictive modeling.
+
+### Demographics by High-Cost Status
+
+```{r fig.width=10, fig.height=8, echo=FALSE, message=FALSE, warning=FALSE}
+library(patchwork)
+
+# Create each plot separately
+# Plot 1: Age
+p1 <- ggplot(meps_clean, aes(x = age, fill = factor(high_cost))) +
+  geom_histogram(binwidth = 5, position = "identity", alpha = 0.5) +
+  labs(title = "Age Distribution by High-Cost Status", x = "Age", fill = "High Cost")
+
+# Plot 2: Sex
+p2 <- ggplot(meps_clean, aes(x = sex, fill = factor(high_cost))) +
+  geom_bar(position = "fill") +
+  labs(title = "High-Cost Proportion by Sex", y = "Proportion", fill = "High Cost")
+
+# Plot 3: Race
+p3 <- ggplot(meps_clean, aes(x = race, fill = factor(high_cost))) +
+  geom_bar(position = "fill") +
+  labs(title = "High-Cost Proportion by Race", y = "Proportion", fill = "High Cost")
+
+# Combine: two on top row, one on second row
+(p1 + p2) / p3
+
+```
+
+**Observation** Older individuals are more likely to fall into the
+high-cost category. The differences in cost distribution were observed
+by sex, race, and insurance type suggesting that certain demographic and
+socioeconomic groups may be more at risk.
+
+### Insurance Type and Cost Burden
+
+```{r}
+ggplot(meps_clean, aes(x = insurance, fill = factor(high_cost))) +
+  geom_bar(position = "fill") +
+  labs(title = "High-Cost Proportion by Insurance Type", y = "Proportion", fill = "High Cost")
+```
+
+**Observation** Uninsured or public-only groups may be more
+cost-vulnerable.
+
+### Utilization Patterns by Cost Status
+
+```{r fig.width=10, fig.height=5, echo=FALSE, message=FALSE, warning=FALSE}
+# Office Visits Plot
+p1 <- ggplot(meps_clean, aes(x = factor(high_cost), y = office_visits)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(title = "Office Visits by Cost Group", x = "High Cost", y = "Visits")
+
+# ER Visits Plot
+p2 <- ggplot(meps_clean, aes(x = factor(high_cost), y = er_visits)) +
+  geom_boxplot(fill = "lightpink") +
+  labs(title = "ER Visits by Cost Group", x = "High Cost", y = "Visits")
+
+# Combine side by side
+p1 + p2 + plot_layout(ncol = 2)
+```
+
+**Observation** High-cost individuals tend to have significantly more
+office visits, emergency room visits, and inpatient discharges,
+indicating a strong association between service utilization and cost.
+
+### Chronic Conditions and Cost
+
+```{r}
+chronic_vars = c("hypertension", "diabetes", "heart_disease", "stroke")
+
+meps_clean %>%
+  select(high_cost, all_of(chronic_vars)) %>%
+  group_by(high_cost) %>%
+  summarise(across(everything(), ~mean(. == 1))) %>%
+  pivot_longer(-high_cost, names_to = "condition", values_to = "prevalence") %>%
+  ggplot(aes(x = condition, y = prevalence, fill = factor(high_cost))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Prevalence of Chronic Conditions by High-Cost Status", y = "Proportion", fill = "High Cost")
+```
+
+**Observation** Chronic diseases such as hypertension, diabetes, heart
+disease, and stroke are more prevalent among high-cost individuals.
+
+**Summary of EDA Insights and Modeling Direction:**
+
+Exploratory data analysis (EDA) revealed distinct patterns among
+individuals with high healthcare expenditures. These individuals were
+typically older, had one or more chronic conditions such as hypertension
+and heart disease, and demonstrated greater utilization of healthcare
+services, particularly through frequent office visits and emergency room
+usage. Furthermore, those with public insurance or no insurance were
+disproportionately represented in the high-cost group, emphasizing the
+influence of coverage and access to care on overall healthcare spending.
+
+These insights informed both the feature selection for predictive
+modeling and the decision to apply K-Means clustering as a segmentation
+technique. Key variables; **age, utilization metrics, chronic
+conditions, and insurance status** were used to explore underlying
+structure in the data and group individuals with similar healthcare risk
+patterns. This two-pronged approach allows the model to not only predict
+high-cost individuals but also understand how different population
+segments contribute to healthcare burden.
+
+# 3. Segmentation Using K-Means Clustering
+
+To better understand variations in healthcare utilization and cost risk,
+we implemented K-Means clustering, an unsupervised learning method that
+groups individuals based on similarities in selected features. The
+objective was to identify distinct risk profiles by analyzing
+combinations of demographic, clinical, and insurance-related variables.
+
+This segmentation process helped reveal hidden patterns within the
+population that are not easily captured through individual variables
+alone. By classifying individuals into homogeneous subgroups, the model
+provides a more nuanced understanding of healthcare needs, enabling
+targeted interventions, risk-adjusted care strategies, and more
+efficient resource allocation in population health management.
+
+## 3.1. Prepare Data for Clustering
+
+Since K-Means is a distance-based algorithm, all variables were
+standardized using scale() to ensure equal contribution to clustering.
+The categorical variable insurance was one-hot encoded using
+model.matrix() to convert it into binary indicator variables.
+
+```{r}
+# Select relevant features for clustering
+clustering_data = meps_clean %>%
+  select(age, office_visits, er_visits, inpatient_discharges,
+         hypertension, diabetes, heart_disease, stroke,
+         insurance)
+
+# One-hot encode insurance using model.matrix() (excluding intercept)
+clustering_matrix = model.matrix(~ . -1, data = clustering_data)
+
+# Convert to data frame and scale
+clustering_scaled = scale(as.data.frame(clustering_matrix))
+
+```
+
+### Determine the Optimal Number of Clusters (Elbow Method)
+
+We used the Elbow Method to determine the appropriate number of clusters
+(k).
+
+```{r}
+set.seed(123)
+
+wss = sapply(1:10, function(k) {
+  kmeans(clustering_scaled, centers = k, nstart = 20)$tot.withinss
+})
+
+# Plot the Elbow graph
+plot(1:10, wss, type = "b",
+     xlab = "Number of Clusters (k)",
+     ylab = "Total Within-Cluster Sum of Squares",
+     main = "Elbow Method for Choosing k")
+
+```
+
+By plotting the total within-cluster sum of squares (WSS) for values of
+k ranging from 1 to 10, we identified a clear “elbow” at k = 4. This
+indicates that four clusters provide a good balance between model
+simplicity and data fit.
+
+## 3.2. Apply K-Means Clustering
+
+```{r}
+set.seed(123)
+kmeans_result = kmeans(clustering_scaled, centers = 4, nstart = 25)
+
+# Add cluster labels to the original data
+meps_clean$cluster = factor(kmeans_result$cluster)
+
+```
+
+### Interpret the Clusters
+
+```{r}
+meps_clean %>%
+  group_by(cluster) %>%
+  summarise(
+    avg_age = round(mean(age), 1),
+    avg_office_visits = round(mean(office_visits), 1),
+    avg_er_visits = round(mean(er_visits), 1),
+    hypertension_rate = mean(hypertension == 1),
+    heart_disease_rate = mean(heart_disease == 1),
+    diabetes_rate = mean(diabetes == 1),
+    uninsured_rate = mean(insurance == "Uninsured")
+  )
+
+```
+
+### Visualize Clusters with PCA
+
+To visualize the clustering results, we used Principal Component
+Analysis (PCA) to reduce the data from many dimensions to just two (PC1,
+PC2). This allows us to plot all individuals in a 2D space and color
+them by cluster
+
+```{r}
+# Run PCA on scaled clustering matrix
+pca_result <- prcomp(clustering_scaled)
+
+# Use first two principal components
+pca_data <- as.data.frame(pca_result$x[, 1:2])
+pca_data$cluster <- meps_clean$cluster
+
+# Plot PCA with cluster coloring
+ggplot(pca_data, aes(x = PC1, y = PC2, color = cluster)) +
+  geom_point(alpha = 0.6) +
+  labs(title = "K-Means Clusters Visualized via PCA") +
+  theme_minimal()
+
+```
+
+The resulting scatter plot shows each individual colored by their
+cluster assignment. The visualization confirms that the four clusters
+are relatively well-separated in the reduced space, suggesting that the
+segmentation captures meaningful patterns in the data.
+
+### Clustering Results and Risk Profile Interpretation
+
+We applied the K-Means algorithm with k = 4, assigning each individual
+to one of four clusters. These clusters were then interpreted using
+summary statistics across key variables. The resulting risk profiles are
+as follows:
+
+**Cluster 1 – High Risk, High Cost:** \* Comprised mostly of older
+individuals with elevated rates of emergency and inpatient care, and a
+high prevalence of chronic conditions. This group likely represents the
+costliest patients, requiring intensive management.
+
+**Cluster 2 – At-Risk Due to Limited Access:** \* Characterized by
+moderate healthcare utilization but a high proportion of uninsured
+individuals. This group may not yet be high-cost but is at risk due to
+lack of preventive care and limited access to consistent medical
+services.
+
+**Cluster 3 – Moderately Engaged, Stable Risk:** \* Individuals in this
+cluster had higher-than-average office visits but relatively stable
+chronic condition rates and low ER usage. This suggests active
+engagement with primary care and condition management.
+
+**Cluster 4 – Low Risk, Low Cost:** \* Younger individuals with minimal
+healthcare utilization and a low prevalence of chronic conditions. This
+group reflects the healthiest and least costly population segment.
+
+The segmentation process successfully identified four distinct risk
+profiles within the insured population, offering valuable insights into
+how healthcare needs and costs vary across individuals. These clusters
+can inform policy development and care coordination strategies. In the
+next phase of the analysis, we incorporate cluster membership as a
+predictor in a logistic regression model to assess its utility in
+forecasting high-cost individuals.
+
+# 4.0 Predictive Modeling Using Logistic Regression
+
+## 4.1 Objective
+
+Following segmentation, the goal of this phase was to develop a
+predictive model that can identify individuals likely to become
+high-cost healthcare users, defined as those in the top 25% of total
+expenditures. Logistic regression was chosen as the modeling technique
+due to its suitability for binary classification tasks,
+interpretability, and effectiveness in healthcare applications where
+transparency is crucial for decision-making.
+
+## 4.2 Data Preparation
+
+The outcome variable was high_cost, a binary indicator (1 = top 25% of
+spenders, 0 = lower 75%) derived from the total_expenditure field in the
+MEPS dataset. Based on insights from the exploratory data analysis and
+clustering phase, we selected the following predictor variables:
+
+-   Demographics: age
+-   Utilization: office_visits, er_visits
+-   Chronic conditions: hypertension, heart_disease
+-   Insurance status: insurance (factor)
+-   Cluster membership: cluster (from K-Means segmentation)
+
+The dataset was then randomly split into a training set (70%) and a test
+set (30%) using row-level sampling.
+
+```{r}
+set.seed(123)
+
+meps_clean = meps_clean %>%
+  mutate(id = row_number())  # Only if you need to anti_join
+
+train = meps_clean %>%
+  sample_frac(0.7)
+
+test = anti_join(meps_clean, train, by = "id")
+
+# Fit model including cluster
+logit_model1 = glm(high_cost ~ age + office_visits + er_visits +
+                     hypertension + heart_disease + insurance + cluster,
+                   data = train, family = binomial)
+
+summary(logit_model1)
+
+```
+
+### Prediction on Test Data
+
+```{r}
+# Predict probabilities
+predicted_probs = predict(logit_model1, newdata = test, type = "response")
+
+# Classify as high-cost if probability > 0.5
+test$predicted_class = ifelse(predicted_probs > 0.5, 1, 0)
+
+# Confusion matrix (Actual vs. Predicted)
+conf_matrix1 = table(Predicted = test$predicted_class, Actual = test$high_cost)
+print(conf_matrix1)
+```
+
+## Calculate Accuracy, Sensitivity, and Specificity
+
+```{r}
+# Extract values from confusion matrix
+TP1 <- conf_matrix1["1", "1"]  # True Positives
+TN1 <- conf_matrix1["0", "0"]  # True Negatives
+FP1 <- conf_matrix1["1", "0"]  # False Positives
+FN1 <- conf_matrix1["0", "1"]  # False Negatives
+
+# Metrics
+accuracy <- (TP1 + TN1) / sum(conf_matrix1)
+sensitivity <- TP1 / (TP1 + FN1)  # Recall / True Positive Rate
+specificity <- TN1 / (TN1 + FP1)  # True Negative Rate
+precision <- TP1 / (TP1 + FP1)
+
+# Display
+cat("Accuracy:", round(accuracy, 3), "\n")
+cat("Sensitivity (Recall):", round(sensitivity, 3), "\n")
+cat("Specificity:", round(specificity, 3), "\n")
+cat("Precision:", round(precision, 3), "\n")
+```
+
+### Model Results and Interpretation
+
+The logistic regression model achieved an overall accuracy of 84.2%,
+with a precision of 78.3% and a sensitivity of 53%. While the model is
+highly effective at identifying individuals who are not high-cost
+(specificity = 95%), its sensitivity could be improved to better capture
+all true high-cost members. Key predictors of high-cost status included
+age, number of office and ER visits, heart disease, and cluster
+membership. In particular, ER usage and membership in Clusters 2–4
+significantly increased the odds of being high-cost. Interestingly,
+individuals who were uninsured were less likely to appear as high-cost
+in the data, possibly reflecting underutilization due to access barriers
+rather than actual lower health risk. These results demonstrate that
+combining direct indicators (age, utilization, chronic conditions) with
+risk profiles from clustering leads to a well-calibrated and
+interpretable model.
+
+**Cluster Effects in the Model**
+
+In the logistic regression model, Cluster 1 served as the reference
+group. The model output showed that individuals in Clusters 2, 3, and 4
+all had significantly higher odds of being high-cost compared to
+Cluster 1. Specifically:
+
+-   **Cluster 2** had a positive coefficient, indicating increased cost
+    risk despite moderate utilization—likely due to access barriers
+    leading to delayed care.
+
+-   **Cluster 3** also showed elevated odds, consistent with individuals
+    actively managing chronic conditions through regular visits.
+
+-   **Cluster 4** had the highest effect, aligning with the expectation
+    that this group incurs substantial healthcare costs.
+
+# 5.0 Conclusion: Applying the Model for Proactive Care
+
+The predictive model developed in this project offers a practical tool
+for shifting healthcare management from reactive treatment to proactive,
+preventative care. By identifying individuals who are likely to become
+high-cost before their expenditures escalate, healthcare providers and
+insurers can prioritize early interventions such as chronic disease
+management, care coordination, and targeted outreach. The inclusion of
+risk profiles derived from clustering enhances this capability by
+highlighting not just who is at risk, but why—whether due to clinical
+conditions, healthcare access, or utilization patterns. This enables the
+design of tailored care strategies for each subgroup. Integrating this
+model into population health workflows or insurance risk scoring systems
+can lead to more efficient resource use, improved patient outcomes, and
+long-term cost containment.
